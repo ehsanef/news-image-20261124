@@ -7,7 +7,7 @@
 // that image at /output/entry.png, so both grader runs write identical bytes.
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
 
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,6 +19,15 @@ if (!existsSync(image)) {
   console.error('entry.png is missing from the repository root');
   process.exit(1);
 }
+// Guard against shipping a truncated or non-PNG file: the gate rejects
+// anything that is not a whole PNG of at most 1 MiB and 1024x1024.
+const bytes = readFileSync(image);
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+if (bytes.length > 1048576 || !bytes.subarray(0, 8).equals(PNG_MAGIC)) {
+  console.error('entry.png is not a whole PNG of at most 1 MiB');
+  process.exit(1);
+}
 if (!existsSync(destination)) mkdirSync(destination, { recursive: true });
 copyFileSync(image, join(destination, 'entry.png'));
-console.log(`wrote ${join(destination, 'entry.png')}`);
+const written = statSync(join(destination, 'entry.png'));
+console.log(`wrote ${join(destination, 'entry.png')} (${written.size} bytes)`);
